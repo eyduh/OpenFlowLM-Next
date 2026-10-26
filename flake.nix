@@ -73,15 +73,7 @@
               source = inputs.self;
               openflowlm-open-kernels = config.packages.openflowlm-open-kernels;
             };
-            # XRT's plugin loader resolves libxrt_driver_xdna next to
-            # libxrt_core, so the dev shell needs the amdxdna plugin combined
-            # with XRT -- plain `xrt` cannot enumerate the NPU.
-            xrt-combined = pkgs.runCommand "xrt-combined" {} ''
-              mkdir -p $out
-              cp -rs ${pkgs.xrt}/opt/xilinx/xrt/* $out/
-              chmod -R u+w $out/lib
-              ln -sf ${pkgs.xrt-plugin-amdxdna}/opt/xilinx/xrt/lib/libxrt_driver_xdna* $out/lib/
-            '';
+            inherit (pkgs) xrt-combined;
           in pkgs.mkShell {
             name = "oflm-dev";
             nativeBuildInputs = with pkgs; [

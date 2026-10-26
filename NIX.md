@@ -75,7 +75,8 @@ in a sandboxed Nix build.
 
 ### Engine with BERT kernels
 
-On a machine with an AMD XDNA2 NPU and the nix-amd-ai XRT+amdxdna plugin:
+On a machine with an AMD XDNA2 NPU and the nix-amd-ai XRT+amdxdna plugin
+(`pkgs.xrt-combined`):
 
 ```bash
 nix run .#oflm-with-bert -- --help
@@ -129,9 +130,10 @@ Import the flake in your NixOS configuration and enable the module:
 `nix-amd-ai.nixosModules.default` and this repo's module.  The nix-amd-ai
 module loads the `amdxdna` kernel module, sets up `/dev/accel*` udev rules,
 configures PAM memlock limits for the `video` and `render` groups, and wires
-`XILINX_XRT` / `XRT_PATH` to the XRT + amdxdna plugin combination.  This is
-what makes `xrt-smi` and `pyxrt` see the NPU.  Our module sets
-`hardware.amd-npu.enable` to a default of `true`.
+`XILINX_XRT` / `XRT_PATH` to the nix-amd-ai `xrt-combined` package (XRT +
+amdxdna plugin next to its libraries).  This is what makes `xrt-smi` and
+`pyxrt` see the NPU.  Our module sets `hardware.amd-npu.enable` to a default
+of `true`.
 
 Hosts that already import nix-amd-ai or set `hardware.amd-npu.enable` are not
 affected, because `lib.mkDefault` only supplies a default.

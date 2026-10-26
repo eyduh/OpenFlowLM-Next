@@ -7,6 +7,7 @@
   python312Packages,
   pkgs,
   xrt,
+  xrt-combined,
   git,
   makeWrapper,
   unzip,
@@ -31,7 +32,7 @@
 let
   env = lib.callPackageWith (
     {
-      inherit lib stdenv fetchurl python312 python312Packages xrt git makeWrapper unzip zlib patchelf pkgs;
+      inherit lib stdenv fetchurl python312 python312Packages xrt xrt-combined git makeWrapper unzip zlib patchelf pkgs;
     }
   ) ./open-kernels-env.nix {};
 in
@@ -47,7 +48,7 @@ stdenv.mkDerivation rec {
 
   buildPhase = ''
     export HOME=$TMPDIR
-    export XILINX_XRT="${env.xrtCombined}"
+    export XILINX_XRT="${env.env.XILINX_XRT}"
     export OFLM_VENV_DIR="$TMPDIR/ironvenv"
     export OFLM_SKIP_VENV_SETUP=1
 
@@ -74,8 +75,8 @@ stdenv.mkDerivation rec {
     ln -sf ${python312}/bin/python "$OFLM_VENV_DIR/bin/python"
 
     export PEANO_INSTALL_DIR="$OFLM_VENV_DIR/${env.env.PEANO_INSTALL_DIR}"
-    export PATH="$OFLM_VENV_DIR/${env.pySite}/llvm-aie/bin:$OFLM_VENV_DIR/${env.pySite}/mlir_aie/bin:${env.xrtCombined}/bin:$PATH"
-    export PYTHONPATH="$OFLM_VENV_DIR/${env.pySite}:${env.xrtCombined}/python''${PYTHONPATH:+:$PYTHONPATH}"
+    export PATH="$OFLM_VENV_DIR/${env.pySite}/llvm-aie/bin:$OFLM_VENV_DIR/${env.pySite}/mlir_aie/bin:${env.env.XILINX_XRT}/bin:$PATH"
+    export PYTHONPATH="$OFLM_VENV_DIR/${env.pySite}:${env.env.XILINX_XRT}/python''${PYTHONPATH:+:$PYTHONPATH}"
     export LD_LIBRARY_PATH="${env.env.LD_LIBRARY_PATH}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
     # The manylinux llvm-aie/mlir-aie wheels ship x86_64 executables that

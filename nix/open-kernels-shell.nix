@@ -8,6 +8,7 @@
 , python312 ? pkgs.python312
 , python312Packages ? pkgs.python312Packages
 , xrt ? pkgs.xrt
+, xrt-combined ? pkgs.xrt-combined
 , git ? pkgs.git
 , makeWrapper ? pkgs.makeWrapper
 , unzip ? pkgs.unzip
@@ -17,7 +18,7 @@
 
 let
   env = pkgs.lib.callPackageWith {
-    inherit lib stdenv fetchurl python312 python312Packages xrt git makeWrapper unzip zlib patchelf pkgs;
+    inherit lib stdenv fetchurl python312 python312Packages xrt xrt-combined git makeWrapper unzip zlib patchelf pkgs;
   } ./open-kernels-env.nix {};
 in
 
@@ -25,7 +26,7 @@ pkgs.mkShell {
   name = "open-kernels-dev";
 
   nativeBuildInputs = env.nativeTools;
-  buildInputs = env.runtimeLibs ++ [ env.ironvenv env.xrtCombined ];
+  buildInputs = env.runtimeLibs ++ [ env.ironvenv ];
 
   shellHook = ''
     export XILINX_XRT="${env.env.XILINX_XRT}"

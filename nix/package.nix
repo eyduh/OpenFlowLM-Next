@@ -24,6 +24,7 @@
   rustc,
   rustPlatform,
   xrt,
+  xrt-combined,
   makeWrapper,
   openflowlm-open-kernels,
   python3,
@@ -43,16 +44,6 @@ let
     hash = "sha256-r10QIeYnNaudFuHCdOWwTIHMRFqSf1p2ck33nmUEGj8=";
     fetchSubmodules = true;
   };
-
-  # XRT's plugin loader resolves libxrt_driver_xdna next to libxrt_core.
-  # Combine XRT with the amdxdna plugin so `oflm` works without relying on
-  # the NixOS module's session variables.
-  xrt-combined = pkgs.runCommand "xrt-combined" {} ''
-    mkdir -p $out
-    cp -rs ${xrt}/opt/xilinx/xrt/* $out/
-    chmod -R u+w $out/lib
-    ln -sf ${pkgs.xrt-plugin-amdxdna}/opt/xilinx/xrt/lib/libxrt_driver_xdna* $out/lib/
-  '';
 
   in
 stdenv.mkDerivation rec {
@@ -81,7 +72,7 @@ stdenv.mkDerivation rec {
   ];
 
   buildInputs = [
-    xrt
+    xrt-combined
     abseil-cpp
     boost
     curl
@@ -129,7 +120,7 @@ stdenv.mkDerivation rec {
 
   preConfigure = ''
     export XILINX_XRT="${xrt-combined}"
-    export PKG_CONFIG_PATH="${xrt-combined}/lib/pkgconfig''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    export PKG_CONFIG_PATH="${lib.getDev xrt-combined}/lib/pkgconfig''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
   '';
 
   postInstall = ''
@@ -162,7 +153,7 @@ stdenv.mkDerivation rec {
 
     wrapProgram $out/bin/.oflm-wrapped \
       --set-default XILINX_XRT "${xrt-combined}" \
-      --prefix LD_LIBRARY_PATH : "${xrt-combined}/lib" \
+      --prefix LD_LIBRARY_PATH : "${lib.getLib xrt-combined}/lib" \
       --prefix PATH : "${lib.makeBinPath [ xrt-combined python3 ]}"
 
     # oflm-test and q4nx-build are CMake-generated launchers that exec a bare

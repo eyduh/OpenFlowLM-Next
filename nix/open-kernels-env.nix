@@ -8,7 +8,7 @@
   python312Packages,
   pkgs ? null,
   xrt ? pkgs.xrt,
-  xrt-plugin-amdxdna ? pkgs.xrt-plugin-amdxdna,
+  xrt-combined ? pkgs.xrt-combined,
   git,
   makeWrapper,
   unzip,
@@ -19,22 +19,6 @@
 let
   pyVersion = "3.12";
   pySite = "lib/python${pyVersion}/site-packages";
-
-  # XRT needs the amdxdna plugin next to its lib/ to enumerate NPU devices.
-  # nix-amd-ai ships xrt and xrt-plugin-amdxdna separately; combine them the
-  # same way the nix-amd-ai NixOS module does.
-  xrtPrefix = "${xrt}/opt/xilinx/xrt";
-  xrtCombined = stdenv.mkDerivation {
-    pname = "xrt-combined";
-    version = xrt.version;
-    phases = [ "installPhase" ];
-    installPhase = ''
-      mkdir -p $out
-      cp -rs ${xrtPrefix}/* $out/
-      chmod -R u+w $out/lib
-      ln -sf ${xrt-plugin-amdxdna}/opt/xilinx/xrt/lib/libxrt_driver_xdna* $out/lib/
-    '';
-  };
 
   mlirAieWheel = fetchurl {
     url = "https://github.com/Xilinx/mlir-aie/releases/download/v1.4.3/mlir_aie-1.4.3-cp312-cp312-manylinux_2_35_x86_64.whl";
@@ -58,6 +42,9 @@ let
 
   # Runtime / native tools needed by both the package build and the dev shell.
   nativeTools = [ git makeWrapper python312 unzip patchelf ];
+  # Dense kernel builds only call xclbinutil, so they only need plain xrt.
+  # The BERT embedding sets need pyxrt and NPU access; xrt-combined (XRT +
+  # amdxdna plugin) is provided for those cases via the env below.
   runtimeLibs = [ stdenv.cc.cc.lib zlib xrt ];
 
   ironvenv = stdenv.mkDerivation {
@@ -91,17 +78,17 @@ let
   };
 in
 {
-  inherit pyVersion pySite pyDeps nativeTools runtimeLibs ironvenv xrtCombined;
+  inherit pyVersion pySite pyDeps nativeTools runtimeLibs ironvenv;
 
   env = {
     # Standard environment variables needed by export scripts at run time.
     # Use the combined XRT so the amdxdna plugin is discoverable next to lib/.
-    XILINX_XRT = "${xrtCombined}";
+    XILINX_XRT = "${xrt-combined}";
     # The venv is materialized at $TMPDIR/ironvenv by callers; keep these
     # paths relative so they can be prefixed to the chosen venv location.
     PEANO_INSTALL_DIR = "${pySite}/llvm-aie";
     PATH = "${pySite}/llvm-aie/bin:${pySite}/mlir_aie/bin";
     PYTHONPATH = "${pySite}";
-    LD_LIBRARY_PATH = lib.makeLibraryPath ([ xrtCombined ] ++ runtimeLibs);
+    LD_LIBRARY_PATH = lib.makeLibraryPath ([ xrt-combined ] ++ runtimeLibs);
   };
 }
