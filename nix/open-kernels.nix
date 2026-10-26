@@ -79,22 +79,6 @@ stdenv.mkDerivation rec {
     export PYTHONPATH="$OFLM_VENV_DIR/${env.pySite}:${env.env.XILINX_XRT}/python''${PYTHONPATH:+:$PYTHONPATH}"
     export LD_LIBRARY_PATH="${env.env.LD_LIBRARY_PATH}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-    # The manylinux llvm-aie/mlir-aie wheels ship x86_64 executables that
-    # hard-code /lib64/ld-linux-x86-64.so.2.  In the Nix sandbox /lib64 is
-    # unavailable, so patch the interpreter to the stdenv linker and add the
-    # C++ runtime + zlib to the RUNPATH without destroying the wheel's own
-    # library search paths (e.g. mlir_aie.libs/libcrypto-...so.3).
-    for dir in "$PEANO_INSTALL_DIR/bin" "$OFLM_VENV_DIR/${env.pySite}/mlir_aie/bin"; do
-      if [ -d "$dir" ]; then
-        for bin in "$dir/"*; do
-          if [ -f "$bin" ] && [ -x "$bin" ]; then
-            ${patchelf}/bin/patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$bin" 2> /dev/null || true
-            ${patchelf}/bin/patchelf --add-rpath '${stdenv.cc.cc.lib}/lib:${zlib}/lib' "$bin" 2> /dev/null || true
-          fi
-        done
-      fi
-    done
-
     # Skip whatever skipSpecs names (see the derivation's argument for why).
     python utilities/export-kernels.py --force --jobs "''${NIX_BUILD_CORES:-4}" \
       ${lib.optionalString skipBert "--skip-bert"} \

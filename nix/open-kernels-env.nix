@@ -51,9 +51,19 @@ let
     pname = "openflowlm-ironvenv";
     version = "1.4.3-20260923";
 
-    nativeBuildInputs = [ python312 unzip ];
+    nativeBuildInputs = [ python312 unzip patchelf ];
     src = ./.;
     dontUnpack = true;
+    # We patchelf the wheel binaries ourselves (executables + shared libs) to
+    # keep the manylinux RUNPATH entries (e.g. $ORIGIN/../lib) and add the
+    # C++ runtime / zlib.  Nix's default patchELF would run
+    # patchelf --shrink-rpath afterwards and strip the zlib path because the
+    # binaries do not directly declare libz.so.1 as NEEDED.  Stripping the
+    # ELF files can also corrupt the GNU version sections these manylinux
+    # wheels rely on, producing "no version information available" at load
+    # time.
+    dontPatchELF = true;
+    dontStrip = true;
 
     installPhase = ''
       ${python312}/bin/python -m venv $out
@@ -69,6 +79,30 @@ let
       # The wheel drops the aie package under mlir_aie/python; make it
       # importable without relying on aie.pth.
       ln -s "$SITE/mlir_aie/python/aie" "$SITE/aie"
+
+      # The manylinux llvm-aie/mlir-aie wheels ship x86_64 executables that
+      # hard-code /lib64/ld-linux-x86-64.so.2.  In the Nix sandbox /lib64 is
+      # unavailable, so patch the interpreter and add the C++ runtime + zlib
+      # to their RUNPATH without destroying the wheel's own library search
+      # paths (e.g. mlir_aie.libs/libcrypto-...so.3).  The shared libraries
+      # (libLLVM.so, libclang-cpp.so, ...) must be patched too, because they
+      # need libstdc++/libz and only see the main executable's RUNPATH when
+      # loaded as dependencies.  Doing this once in the venv derivation means
+      # materialized copies are already usable.
+      for dir in "$SITE/llvm-aie/bin" "$SITE/llvm-aie/lib" "$SITE/mlir_aie/bin" "$SITE/mlir_aie/lib"; do
+        if [ -d "$dir" ]; then
+          for f in "$dir/"*; do
+            if [ -f "$f" ]; then
+              # Only touch ELF files; patchelf errors on .o/.py/etc.
+              if ${patchelf}/bin/patchelf --print-interpreter "$f" >/dev/null 2>&1; then
+                ${patchelf}/bin/patchelf --set-interpreter ${stdenv.cc.bintools.dynamicLinker} "$f" || true
+              fi
+              ${patchelf}/bin/patchelf --add-rpath '${stdenv.cc.cc.lib}/lib' "$f" || true
+              ${patchelf}/bin/patchelf --add-rpath '${zlib}/lib' "$f" || true
+            fi
+          done
+        fi
+      done
 
       mkdir -p $out/nix-support
       echo "OpenFlowLM IRON toolchain venv (Python 3.12)" > $out/nix-support/hydra-build-products
@@ -89,6 +123,11 @@ in
     PEANO_INSTALL_DIR = "${pySite}/llvm-aie";
     PATH = "${pySite}/llvm-aie/bin:${pySite}/mlir_aie/bin";
     PYTHONPATH = "${pySite}";
-    LD_LIBRARY_PATH = lib.makeLibraryPath ([ xrt-combined ] ++ runtimeLibs);
+    # Only put XRT on LD_LIBRARY_PATH.  The wheel binaries (aiecc, Peano
+    # clang) have been patchelf'd with their own RUNPATHs, so they do not
+    # need the C++ runtime here; adding stdenv.cc.cc.lib would shadow the
+    # newer libstdc++ that xclbinutil's RUNPATH needs and break it in the
+    # sandbox.
+    LD_LIBRARY_PATH = lib.makeLibraryPath [ xrt-combined ];
   };
 }
